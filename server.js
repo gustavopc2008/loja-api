@@ -163,6 +163,13 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
       auto_return: "approved",
     };
 
+    console.log("📤 Enviando preferência para Mercado Pago:", {
+      total: totalNumber,
+      itemsCount: itemsMP.length,
+      orderId,
+      tokenLength: MP_ACCESS_TOKEN?.length || 0,
+    });
+
     const mpResp = await axios.post(
       "https://api.mercadopago.com/checkout/preferences",
       preference,
@@ -270,14 +277,31 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
     console.log("✅ Preferência criada:", initPoint, "orderId:", orderId);
     return res.status(200).json({ init_point: initPoint });
   } catch (error) {
-    console.error("❌ Erro ao criar preferência:", {
+    // Log detalhado do erro
+    const errorDetails = {
       message: error.message,
       status: error.response?.status,
+      statusText: error.response?.statusText,
       data: error.response?.data,
-    });
+      code: error.code,
+    };
+    console.error("❌ Erro ao criar preferência:", JSON.stringify(errorDetails, null, 2));
+
+    // Monta mensagem de erro mais útil
+    let errorMessage = error.message || "Erro desconhecido";
+    if (error.response?.data) {
+      if (typeof error.response.data === "object") {
+        errorMessage = JSON.stringify(error.response.data);
+      } else {
+        errorMessage = String(error.response.data);
+      }
+    } else if (error.response?.status) {
+      errorMessage = `Erro HTTP ${error.response.status}: ${error.response.statusText || error.message}`;
+    }
+
     return res.status(500).json({
       error: "Erro ao criar preferência",
-      details: error.response?.data || error.message,
+      details: errorMessage,
     });
   }
 });
