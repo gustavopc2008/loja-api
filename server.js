@@ -15,6 +15,11 @@ const PORT = process.env.PORT || 3000;
 const STORE_URL = (process.env.STORE_URL || process.env.BASE_URL || "https://xn--crianaecia-s6a.store").replace(/\/$/, "");
 const API_URL = (process.env.API_URL || STORE_URL).replace(/\/$/, "");
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
+if (!MP_ACCESS_TOKEN) {
+  console.warn(
+    "⚠️ MP_ACCESS_TOKEN não definido. Configure a variável de ambiente MP_ACCESS_TOKEN no servidor (Render) para ativar os pagamentos Mercado Pago."
+  );
+}
 const CALLMEBOT_PHONE = process.env.CALLMEBOT_PHONE;
 const CALLMEBOT_TOKEN = process.env.CALLMEBOT_TOKEN;
 
@@ -98,6 +103,15 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
       itens,
       userId,
     } = req.body;
+
+    // Garante que o token do Mercado Pago está configurado
+    if (!MP_ACCESS_TOKEN) {
+      console.error("❌ MP_ACCESS_TOKEN não configurado. Defina a variável de ambiente MP_ACCESS_TOKEN no Render.");
+      return res.status(500).json({
+        error: "Mercado Pago não configurado",
+        details: "Defina a variável de ambiente MP_ACCESS_TOKEN no servidor.",
+      });
+    }
 
     if (!descricao || !Array.isArray(itens) || itens.length === 0) {
       return res.status(400).json({ error: "Dados inválidos: descrição/itens obrigatórios" });
@@ -256,7 +270,11 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
     console.log("✅ Preferência criada:", initPoint, "orderId:", orderId);
     return res.status(200).json({ init_point: initPoint });
   } catch (error) {
-    console.error("❌ Erro ao criar preferência:", error.response?.data || error.message);
+    console.error("❌ Erro ao criar preferência:", {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+    });
     return res.status(500).json({
       error: "Erro ao criar preferência",
       details: error.response?.data || error.message,
