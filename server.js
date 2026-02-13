@@ -168,6 +168,7 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
       itemsCount: itemsMP.length,
       orderId,
       tokenLength: MP_ACCESS_TOKEN?.length || 0,
+      url: "https://api.mercadopago.com/checkout/preferences",
     });
 
     const mpResp = await axios.post(
@@ -178,8 +179,19 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
           Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
           "Content-Type": "application/json",
         },
+        timeout: 30000, // 30 segundos de timeout
+        validateStatus: function (status) {
+          return status < 500; // Não lançar erro para status < 500
+        },
       }
     );
+
+    // Verifica se a resposta foi bem-sucedida
+    if (mpResp.status >= 400) {
+      throw new Error(
+        `Mercado Pago retornou erro ${mpResp.status}: ${JSON.stringify(mpResp.data)}`
+      );
+    }
 
     const initPoint = mpResp?.data?.init_point;
     if (!initPoint) {
@@ -284,10 +296,26 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
       statusText: error.response?.statusText,
       data: error.response?.data,
       code: error.code,
+      errno: error.errno,
+      syscall: error.syscall,
+      hostname: error.hostname,
+      address: error.address,
     };
     console.error("❌ Erro ao criar preferência:", JSON.stringify(errorDetails, null, 2));
 
-    // Monta mensagem de erro mais útil
+    // Trata especificamente ECONNREFUSED
+    if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
+      console.error("⚠️ Problema de conectividade com Mercado Pago. Verifique:");
+      console.error("  1. Se o token está correto e ativo");
+      console.error("  2. Se há restrições de firewall no Render");
+      console.error("  3. Se a URL da API está correta");
+      return res.status(500).json({
+        error: "Erro de conexão com Mercado Pago",
+        details: `Não foi possível conectar à API do Mercado Pago. Código: ${error.code}. Verifique o token e a conectividade.`,
+      });
+    }
+
+    // Monta mensagem de erro mais útil para outros erros
     let errorMessage = error.message || "Erro desconhecido";
     if (error.response?.data) {
       if (typeof error.response.data === "object") {
@@ -297,6 +325,8 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
       }
     } else if (error.response?.status) {
       errorMessage = `Erro HTTP ${error.response.status}: ${error.response.statusText || error.message}`;
+    } else if (error.code) {
+      errorMessage = `${error.code}: ${error.message}`;
     }
 
     return res.status(500).json({
