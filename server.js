@@ -63,6 +63,11 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Health check (para testar se a API está no ar)
+app.get("/", (req, res) => {
+  res.json({ ok: true, msg: "API Loja Crianças e Cia online", endpoints: ["/api/mpCriaPreferencia", "/api/whatsappNotification", "/api/enviarEncomenda"] });
+});
+
 // ============================================================
 // ✅ Envia WhatsApp (CallMeBot)
 // ============================================================
