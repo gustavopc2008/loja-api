@@ -31,9 +31,10 @@ if (!MP_ACCESS_TOKEN) {
 const CALLMEBOT_PHONE = process.env.CALLMEBOT_PHONE;
 const CALLMEBOT_TOKEN = process.env.CALLMEBOT_TOKEN;
 
-// CORS
+// CORS (inclui domínios do site para desktop e mobile)
 const ALLOWED_ORIGINS = [
   "https://xn--crianaecia-s6a.store",
+  "https://criancaecia.store",
   "http://localhost:5500",
   "http://localhost:3000",
   "https://sitefer-c2faa.web.app",
@@ -44,6 +45,8 @@ app.use((req, res, next) => {
     ALLOWED_ORIGINS.includes(origin) ||
     origin.includes("ngrok") ||
     origin.includes("onrender.com") ||
+    origin.includes("railway.app") ||
+    origin.includes(".store") ||
     origin.includes("localhost") ||
     origin === "null"; // file:// local
   if (isAllowed) {
