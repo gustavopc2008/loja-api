@@ -6,9 +6,17 @@
 require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
+const https = require("https");
 const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
 const db = require("./lib/db");
+
+// Agente HTTPS para chamadas ao Mercado Pago (evita ECONNREFUSED no Render free tier)
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  family: 4, // Força IPv4; no Render, IPv6 às vezes falha (ENETUNREACH)
+  timeout: 30000,
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -171,20 +179,36 @@ app.post("/api/mpCriaPreferencia", async (req, res) => {
       url: "https://api.mercadopago.com/checkout/preferences",
     });
 
-    const mpResp = await axios.post(
-      "https://api.mercadopago.com/checkout/preferences",
-      preference,
-      {
-        headers: {
-          Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 30000, // 30 segundos de timeout
-        validateStatus: function (status) {
-          return status < 500; // Não lançar erro para status < 500
-        },
+    const mpConfig = {
+      headers: {
+        Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 30000,
+      httpsAgent,
+      validateStatus: (status) => status < 500,
+    };
+
+    let mpResp;
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        mpResp = await axios.post(
+          "https://api.mercadopago.com/checkout/preferences",
+          preference,
+          mpConfig
+        );
+        break;
+      } catch (err) {
+        if (err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.code === "ENETUNREACH") {
+          console.warn(`⚠️ Tentativa ${attempt}/${maxRetries} falhou (${err.code}). Tentando novamente...`);
+          if (attempt === maxRetries) throw err;
+          await new Promise((r) => setTimeout(r, 2000 * attempt)); // backoff 2s, 4s
+        } else {
+          throw err;
+        }
       }
-    );
+    }
 
     // Verifica se a resposta foi bem-sucedida
     if (mpResp.status >= 400) {
